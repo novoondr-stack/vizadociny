@@ -1,0 +1,250 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════
+   SKY SCENE — THREE-LAYER CROSS-FADE SYSTEM
+   ──────────────────────────────────────────────────────────────
+   Instead of animating one background gradient (causes colour
+   jumps), we stack three layers and animate their OPACITY only.
+   CSS opacity on a composited layer is handled entirely by the
+   GPU — zero layout/paint cost, perfectly smooth fades.
+
+   Stack (bottom → top):
+     .sky-night   opacity: 1 always  — deep navy #1D2F41
+     .sky-golden  animated opacity   — orange/gold #F39C12
+     .sky-day     animated opacity   — sky blue #69D2E7
+
+   Timeline (40 s cycle):
+     0  – 25 %  Full day   (day=1, golden=0, night below hidden)
+     25 – 38 %  Sunset     (day fades 1→0, golden rises 0→1)
+     38 – 50 %  Dusk       (golden fades 1→0, night reveals)
+     50 – 72 %  Deep night (all top layers=0, only night visible)
+     72 – 83 %  Pre-dawn   (golden rises 0→1)
+     83 – 92 %  Sunrise    (golden 1→0, day rises 0→1)
+     92 – 100 % Full day   (day=1, back to start)
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Layer 1: Night (base, always showing) ─────────────────── */
+.sky-night {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #060e1c 0%, #1D2F41 55%, #0c1624 100%);
+  /* no animation — acts as persistent dark canvas */
+}
+
+/* ── Layer 2: Golden hour ────────────────────────────────────── */
+.sky-golden {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    #7c2d12 0%,
+    #c2410c 22%,
+    #F39C12 55%,
+    #fde68a 100%
+  );
+  will-change: opacity;
+  animation: golden-cycle 40s linear infinite;
+}
+
+/* ── Layer 3: Day sky (on top) ────────────────────────────────── */
+.sky-day {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    #0a7a9e 0%,
+    #69D2E7 50%,
+    #c5eef7 100%
+  );
+  will-change: opacity;
+  animation: day-cycle 40s linear infinite;
+}
+
+/* Day opacity: hold → ease out (sunset) → hold zero → ease in (sunrise) → hold */
+@keyframes day-cycle {
+  0%   { opacity: 1; }
+  25%  { opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  38%  { opacity: 0; }
+  75%  { opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  90%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* Golden opacity: zero → peak sunset → zero (night) → peak sunrise → zero (day) */
+@keyframes golden-cycle {
+  0%   { opacity: 0; }
+  23%  { opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  35%  { opacity: 1; }
+  38%  { opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  50%  { opacity: 0; }
+  70%  { opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  82%  { opacity: 1; }
+  87%  { opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  95%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* ── Stars ────────────────────────────────────────────────────── */
+.sky-stars {
+  will-change: opacity;
+  animation: stars-vis 40s linear infinite;
+}
+@keyframes stars-vis {
+  0%   { opacity: 0; }
+  37%  { opacity: 0; animation-timing-function: ease-in-out; }
+  50%  { opacity: 1; }
+  70%  { opacity: 1; animation-timing-function: ease-in-out; }
+  82%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* ── Sun — translate3d forces a GPU compositing layer ──────── */
+.sky-sun {
+  position: absolute;
+  width: 13%;
+  height: 13%;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  animation: sun 40s linear infinite;
+}
+/*
+  Percentage units in translate3d are relative to the element's own size.
+  Sun is 13 % of circle (~62 px on 480 px circle).
+  Keyframe positions pre-calculated so the arc crosses the full sky:
+    left: -18 % → translateX ≈ -133 %   top: 115 % → translateY ≈ 849 %
+    left:  5 %  → translateX ≈  37 %    top:  32 % → translateY ≈ 236 %
+    left: 43 %  → translateX ≈ 318 %    top:   4 % → translateY ≈  30 %
+    left: 85 %  → translateX ≈ 628 %    top:  32 % → translateY ≈ 236 %
+*/
+@keyframes sun {
+  0%   { transform: translate3d(-133%,  849%, 0) scaleX(1); opacity: 0;    }
+  25%  { transform: translate3d(-133%,  849%, 0) scaleX(1); opacity: 0;    }
+  30%  { transform: translate3d(  37%,  236%, 0) scaleX(1); opacity: 0.92; }
+  50%  { transform: translate3d( 318%,   30%, 0) scaleX(1); opacity: 1;    }
+  72%  { transform: translate3d( 628%,  236%, 0) scaleX(1); opacity: 0.92; }
+  78%  { transform: translate3d( 849%,  849%, 0) scaleX(1); opacity: 0;    }
+  100% { transform: translate3d(-133%,  849%, 0) scaleX(1); opacity: 0;    }
+}
+
+/* ── Moon — translate3d, synced to night (50–82 %) ─────────── */
+.sky-moon {
+  position: absolute;
+  width: 11%;
+  height: 11%;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  animation: moon 40s linear infinite;
+}
+/*
+  Moon is 11 % of circle (~53 px on 480 px circle).
+  Rises at 50 %, peaks at 66 %, sets at 82 %.
+*/
+@keyframes moon {
+  0%   { transform: translate3d(-170%, 820%, 0); opacity: 0;    }
+  48%  { transform: translate3d(-170%, 820%, 0); opacity: 0;    }
+  52%  { transform: translate3d( 113%,  85%, 0); opacity: 0.9;  }
+  66%  { transform: translate3d( 370%,  36%, 0); opacity: 1;    }
+  80%  { transform: translate3d( 630%,  85%, 0); opacity: 0.9;  }
+  84%  { transform: translate3d( 880%, 820%, 0); opacity: 0;    }
+  100% { transform: translate3d(-170%, 820%, 0); opacity: 0;    }
+}
+
+/* ── Clouds — GPU translateX (no left/top) ──────────────────── */
+.sky-cloud-1 {
+  position: absolute;
+  width: 46%;
+  top: 20%;
+  left: 0;
+  opacity: 0.88;
+  will-change: transform;
+  animation: cloud1-move 24s 0s infinite linear;
+}
+.sky-cloud-2 {
+  position: absolute;
+  width: 54%;
+  top: 40%;
+  left: 0;
+  opacity: 0.60;
+  will-change: transform;
+  animation: cloud2-move 38s 12s infinite linear;
+}
+/*
+  Distances calculated for 480 px circle:
+  cloud-1 (221 px): −148 % → 295 %
+  cloud-2 (259 px): −126 % → 252 %
+*/
+@keyframes cloud1-move {
+  from { transform: translate3d(-148%, 0, 0); }
+  to   { transform: translate3d( 295%, 0, 0); }
+}
+@keyframes cloud2-move {
+  from { transform: translate3d(-126%, 0, 0) scaleX(-1); }
+  to   { transform: translate3d( 252%, 0, 0) scaleX(-1); }
+}
+
+/* ── Plane — translate3d for silky GPU motion ───────────────── */
+/*
+  Plane is 22 % of circle (~106 px on 480 px circle).
+  Off-screen left:  translateX ≈ −110 %
+  Off-screen right: translateX ≈  453 %
+  Y at 40 %: 192 px / 106 px ≈ 181 %
+  Y at 32 %: 154 px / 106 px ≈ 145 %
+  scaleX(-1) flips the nose to face left (forward direction of travel).
+*/
+.sky-plane {
+  position: absolute;
+  width: 22%;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.30));
+  animation: plane 18s 3s infinite ease-in-out;
+}
+@keyframes plane {
+  0%   { transform: translate3d(-110%, 181%, 0) scaleX(-1); opacity: 0; }
+  8%   { transform: translate3d( -45%, 179%, 0) scaleX(-1); opacity: 1; }
+  50%  { transform: translate3d( 200%, 162%, 0) scaleX(-1); opacity: 1; }
+  92%  { transform: translate3d( 418%, 146%, 0) scaleX(-1); opacity: 1; }
+  100% { transform: translate3d( 470%, 144%, 0) scaleX(-1); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AWAN — infinite seamless cloud strip (stats section bg)
+   background-position is GPU-composited in modern browsers
+═══════════════════════════════════════════════════════════════ */
+.awan-strip {
+  background-image: url('https://abs.twimg.com/images/themes/theme1/bg.png');
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  background-position: 0 center;
+  will-change: background-position;
+  animation: awan 220s linear infinite;
+}
+@keyframes awan {
+  from { background-position-x: 0;       }
+  to   { background-position-x: 10000px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTON — gentle shadow pulse, no layout shifts
+═══════════════════════════════════════════════════════════════ */
+.btn-pulse {
+  animation: shadow-pulse 2.6s ease-in-out infinite;
+}
+@keyframes shadow-pulse {
+  0%,  100% { box-shadow: 0 4px 14px rgba(185,28,28,0.28), 0 0 0 0   rgba(185,28,28,0.16); }
+  50%        { box-shadow: 0 6px 24px rgba(185,28,28,0.40), 0 0 0 8px rgba(185,28,28,0);    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #f9fafb; }
+::-webkit-scrollbar-thumb { background: rgba(185,28,28,0.22); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(185,28,28,0.4); }
